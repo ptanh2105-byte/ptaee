@@ -8,63 +8,63 @@ global selectedFolder := ""
 global isProcessing := false
 
 ; Create GUI
-Gui, Add, Button, x10 y10 w150 h30, Chọn Folder
-Gui, Add, Button, x170 y10 w150 h30, Bắt Đầu Trích Xuất
-Gui, Add, Button, x330 y10 w100 h30, Copy All
-Gui, Add, Button, x440 y10 w120 h30, Export Excel
-Gui, Add, Button, x570 y10 w100 h30, Export CSV
+Gui, Add, Button, x10 y10 w150 h30, SelectFolder
+Gui, Add, Button, x170 y10 w150 h30, StartExtract
+Gui, Add, Button, x330 y10 w100 h30, CopyAll
+Gui, Add, Button, x440 y10 w120 h30, ExportExcel
+Gui, Add, Button, x570 y10 w100 h30, ExportCSV
 Gui, Add, Button, x680 y10 w80 h30, Clear
 
-Gui, Add, Text, x10 y50 w760 h20 cBlue, Thư mục: (Chưa chọn)
+Gui, Add, Text, x10 y50 w760 h20 cBlue vFolderText, Folder: (Not selected)
 Gui, Add, ListBox, x10 y75 w760 h350 Multi vResultsList, 
 
 Gui, Add, StatusBar, x10 y430 w760 h20
-SB_SetText("Sẵn sàng...")
+SB_SetText("Ready...")
 
 Gui, Show, w780 h455, Tax Decision Extractor v1.0
 return
 
-ButtonChọnFolder:
-FileSelectFolder, folder, , 1, Chọn thư mục chứa file Word:
+ButtonSelectFolder:
+FileSelectFolder, folder, , 1, Select folder containing Word files:
 if (folder != "")
 {
     selectedFolder := folder
-    GuiControl, , Static1, Thư mục: %folder%
-    SB_SetText("Đã chọn: " . folder)
+    GuiControl, , FolderText, Folder: %folder%
+    SB_SetText("Selected: " . folder)
 }
 return
 
-ButtonBắt Đầu Trích Xuất:
+ButtonStartExtract:
 if (selectedFolder = "")
 {
-    MsgBox, 48, Thông báo, Vui lòng chọn thư mục trước!
+    MsgBox, 48, Notice, Please select a folder first!
     return
 }
 ProcessFiles()
 return
 
-ButtonCopy All:
+ButtonCopyAll:
 if (resultsArray.Length() = 0)
 {
-    MsgBox, 48, Thông báo, Không có dữ liệu để copy!
+    MsgBox, 48, Notice, No data to copy!
     return
 }
 CopyToClipboard()
 return
 
-ButtonExport Excel:
+ButtonExportExcel:
 if (resultsArray.Length() = 0)
 {
-    MsgBox, 48, Thông báo, Không có dữ liệu để export!
+    MsgBox, 48, Notice, No data to export!
     return
 }
 ExportToExcel()
 return
 
-ButtonExport CSV:
+ButtonExportCSV:
 if (resultsArray.Length() = 0)
 {
-    MsgBox, 48, Thông báo, Không có dữ liệu để export!
+    MsgBox, 48, Notice, No data to export!
     return
 }
 ExportToCSV()
@@ -73,7 +73,7 @@ return
 ButtonClear:
 GuiControl, , ResultsList, |
 resultsArray := []
-SB_SetText("Đã xóa dữ liệu")
+SB_SetText("Data cleared")
 return
 
 ProcessFiles()
@@ -87,7 +87,7 @@ ProcessFiles()
     
     Loop, Files, %selectedFolder%\*.docx
     {
-        SB_SetText("Đang xử lý: " . A_LoopFileName)
+        SB_SetText("Processing: " . A_LoopFileName)
         Sleep, 100
         
         data := ExtractFromWord(A_LoopFilePath)
@@ -100,7 +100,7 @@ ProcessFiles()
     
     GuiControl, Enable, Button2
     isProcessing := false
-    SB_SetText("Hoàn thành! Tìm thấy " . resultsArray.Length() . " file")
+    SB_SetText("Completed! Found " . resultsArray.Length() . " files")
 }
 
 ExtractFromWord(filePath)
@@ -120,8 +120,8 @@ ExtractFromWord(filePath)
     data.position := ""
     data.violation := ""
     data.regulation := ""
-    data.aggravating := "Không"
-    data.mitigating := "Không"
+    data.aggravating := "None"
+    data.mitigating := "None"
     data.penalty := ""
     data.penaltytype := ""
     data.account := ""
@@ -163,9 +163,9 @@ ExtractFromWord(filePath)
         data.mitigating := ExtractValue(docText, "Các tình tiết giảm nhẹ (nếu có):", "Bị áp dụng")
         
         if (InStr(docText, "Phạt tiền"))
-            data.penaltytype := "Phạt tiền"
+            data.penaltytype := "Phat tien"
         else if (InStr(docText, "Phạt cảnh cáo"))
-            data.penaltytype := "Phạt cảnh cáo"
+            data.penaltytype := "Phat canh cao"
         
         data.penalty := ExtractValue(docText, "Mức phạt:", "đồng")
         data.account := ExtractValue(docText, "Tài khoản thu NSNN:", ",")
@@ -175,7 +175,7 @@ ExtractFromWord(filePath)
     }
     catch e
     {
-        SB_SetText("Lỗi khi xử lý: " . filePath)
+        SB_SetText("Error processing: " . filePath)
     }
     
     return data
@@ -233,34 +233,34 @@ CopyToClipboard()
         
         if (item.name != "")
         {
-            text .= "Tên cá nhân: " . item.name . A_LF
-            text .= "Ngày sinh: " . item.birthdate . A_LF
-            text .= "Quốc tịch: " . item.nationality . A_LF
+            text .= "Ten ca nhan: " . item.name . A_LF
+            text .= "Ngay sinh: " . item.birthdate . A_LF
+            text .= "Quoc tich: " . item.nationality . A_LF
             text .= "CCCD: " . item.cccd . A_LF
-            text .= "Nơi làm việc: " . item.workplace . A_LF
-            text .= "Nơi ở: " . item.address . A_LF
+            text .= "Noi lam viec: " . item.workplace . A_LF
+            text .= "Noi o: " . item.address . A_LF
         }
         else if (item.organization != "")
         {
-            text .= "Tên tổ chức: " . item.organization . A_LF
-            text .= "Địa chỉ: " . item.orgaddress . A_LF
-            text .= "Người đại diện: " . item.representative . A_LF
-            text .= "Chức danh: " . item.position . A_LF
+            text .= "Ten to chuc: " . item.organization . A_LF
+            text .= "Dia chi: " . item.orgaddress . A_LF
+            text .= "Nguoi dai dien: " . item.representative . A_LF
+            text .= "Chuc danh: " . item.position . A_LF
         }
         
-        text .= "Mã số thuế: " . item.taxid . A_LF
-        text .= "Biên bản: " . item.bienban . A_LF
-        text .= "Hành vi vi phạm: " . item.violation . A_LF
-        text .= "Quy định tại: " . item.regulation . A_LF
-        text .= "Loại phạt: " . item.penaltytype . A_LF
-        text .= "Mức phạt: " . item.penalty . A_LF
-        text .= "Tài khoản: " . item.account . A_LF
+        text .= "Ma so thue: " . item.taxid . A_LF
+        text .= "Bien ban: " . item.bienban . A_LF
+        text .= "Hanh vi vi pham: " . item.violation . A_LF
+        text .= "Quy dinh tai: " . item.regulation . A_LF
+        text .= "Loai phat: " . item.penaltytype . A_LF
+        text .= "Muc phat: " . item.penalty . A_LF
+        text .= "Tai khoan: " . item.account . A_LF
         text .= A_LF
     }
     
     A_Clipboard := text
-    SB_SetText("Đã copy " . resultsArray.Length() . " record vào clipboard")
-    MsgBox, 64, Thành công, Đã copy dữ liệu vào clipboard!
+    SB_SetText("Copied " . resultsArray.Length() . " records to clipboard")
+    MsgBox, 64, Success, Data copied to clipboard!
 }
 
 ExportToExcel()
@@ -277,7 +277,7 @@ ExportToExcel()
         objSheet := objWorkbook.Sheets(1)
         
         ; Create headers
-        headers := ["STT", "File Name", "Tên/Tổ chức", "Mã số thuế", "Biên bản", "Loại phạt", "Mức phạt", "Hành vi vi phạm"]
+        headers := ["STT", "File Name", "Name/Organization", "Tax ID", "Decision No", "Penalty Type", "Penalty Amount", "Violation"]
         for col, header in headers
             objSheet.Cells(1, col).Value := header
         
@@ -302,12 +302,12 @@ ExportToExcel()
         objWorkbook.Close()
         objExcel.Quit()
         
-        SB_SetText("Đã export ra Excel: " . outputFile)
-        MsgBox, 64, Thành công, Đã export dữ liệu ra Excel!
+        SB_SetText("Exported to Excel: " . outputFile)
+        MsgBox, 64, Success, Data exported to Excel!
     }
     catch e
     {
-        MsgBox, 48, Lỗi, Không thể export ra Excel: %e%
+        MsgBox, 48, Error, Cannot export to Excel: %e%
     }
 }
 
@@ -322,7 +322,7 @@ ExportToCSV()
         file := FileOpen(outputFile, "w", "UTF-8-RAW")
         if !IsObject(file)
         {
-            MsgBox, 48, Lỗi, Không thể tạo file CSV
+            MsgBox, 48, Error, Cannot create CSV file
             return
         }
         
@@ -330,7 +330,7 @@ ExportToCSV()
         file.Write(Chr(0xFEFF))
         
         ; Write headers
-        headers := "STT,File Name,Tên/Tổ chức,Mã số thuế,Biên bản,Loại phạt,Mức phạt,Hành vi vi phạm"
+        headers := "STT,File Name,Name/Organization,Tax ID,Decision No,Penalty Type,Penalty Amount,Violation"
         file.Write(headers . "`n")
         
         ; Write data
@@ -342,12 +342,12 @@ ExportToCSV()
         }
         
         file.Close()
-        SB_SetText("Đã export ra CSV: " . outputFile)
-        MsgBox, 64, Thành công, Đã export dữ liệu ra CSV!
+        SB_SetText("Exported to CSV: " . outputFile)
+        MsgBox, 64, Success, Data exported to CSV!
     }
     catch e
     {
-        MsgBox, 48, Lỗi, Không thể export ra CSV: %e%
+        MsgBox, 48, Error, Cannot export to CSV: %e%
     }
 }
 
@@ -355,7 +355,7 @@ CSVEscape(text)
 {
     if (InStr(text, ",") || InStr(text, """") || InStr(text, "`n"))
     {
-        text := StrReplace(text, """", """")
+        text := StrReplace(text, """", """""")
         return """" . text . """"
     }
     return text
