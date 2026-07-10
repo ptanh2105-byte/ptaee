@@ -85,9 +85,22 @@ ProcessFiles()
     resultsArray := []
     GuiControl, , ResultsList, |
     
+    fileCount := 0
+    processedCount := 0
+    
+    ; Count total files first
+    Loop, Files, %selectedFolder%\*.docx
+        fileCount++
+    Loop, Files, %selectedFolder%\*.doc
+        fileCount++
+    
+    SB_SetText("Found " . fileCount . " Word files. Starting extraction...")
+    Sleep, 500
+    
+    ; Process .docx files
     Loop, Files, %selectedFolder%\*.docx
     {
-        SB_SetText("Processing: " . A_LoopFileName)
+        SB_SetText("Processing (.docx): " . A_LoopFileName . " (" . (processedCount+1) . "/" . fileCount . ")")
         Sleep, 100
         
         data := ExtractFromWord(A_LoopFilePath)
@@ -96,11 +109,27 @@ ProcessFiles()
             resultsArray.Push(data)
             AddToListView(data)
         }
+        processedCount++
+    }
+    
+    ; Process .doc files
+    Loop, Files, %selectedFolder%\*.doc
+    {
+        SB_SetText("Processing (.doc): " . A_LoopFileName . " (" . (processedCount+1) . "/" . fileCount . ")")
+        Sleep, 100
+        
+        data := ExtractFromWord(A_LoopFilePath)
+        if (data.name != "" || data.organization != "")
+        {
+            resultsArray.Push(data)
+            AddToListView(data)
+        }
+        processedCount++
     }
     
     GuiControl, Enable, Button2
     isProcessing := false
-    SB_SetText("Completed! Found " . resultsArray.Length() . " files")
+    SB_SetText("Completed! Extracted " . resultsArray.Length() . " records from " . processedCount . " files")
 }
 
 ExtractFromWord(filePath)
@@ -132,8 +161,9 @@ ExtractFromWord(filePath)
     {
         objWord := ComObjCreate("Word.Application")
         objWord.Visible := false
-        objDoc := objWord.Documents.Open(filePath)
+        objWord.ScreenUpdating := false
         
+        objDoc := objWord.Documents.Open(filePath)
         docText := objDoc.Content.Text
         
         ; Extract data from document
@@ -175,7 +205,7 @@ ExtractFromWord(filePath)
     }
     catch e
     {
-        SB_SetText("Error processing: " . filePath)
+        SB_SetText("Error processing: " . A_LoopFileName . " - " . e.Message)
     }
     
     return data
@@ -217,8 +247,8 @@ AddToListView(data)
     global ResultsList
     
     name := data.name != "" ? data.name : data.organization
-    violation := SubStr(data.violation, 1, 40) . (StrLen(data.violation) > 40 ? "..." : "")
-    penalty := data.penaltytype . (data.penalty != "" ? " - " . data.penalty : "")
+    violation := SubStr(data.violation, 1, 30) . (StrLen(data.violation) > 30 ? "..." : "")
+    penalty := data.penaltytype . (data.penalty != "" ? " - " . SubStr(data.penalty, 1, 15) : "")
     
     GuiControl, , ResultsList, % name . " | " . penalty . " | " . data.bienban
 }
@@ -228,33 +258,33 @@ CopyToClipboard()
     text := ""
     for index, item in resultsArray
     {
-        text .= "=== File " . index . " ===" . A_LF
+        text .= "=== Record " . index . " ===" . A_LF
         text .= "File Name: " . item.filename . A_LF
         
         if (item.name != "")
         {
-            text .= "Ten ca nhan: " . item.name . A_LF
-            text .= "Ngay sinh: " . item.birthdate . A_LF
-            text .= "Quoc tich: " . item.nationality . A_LF
-            text .= "CCCD: " . item.cccd . A_LF
-            text .= "Noi lam viec: " . item.workplace . A_LF
-            text .= "Noi o: " . item.address . A_LF
+            text .= "Name: " . item.name . A_LF
+            text .= "Birth Date: " . item.birthdate . A_LF
+            text .= "Nationality: " . item.nationality . A_LF
+            text .= "ID: " . item.cccd . A_LF
+            text .= "Workplace: " . item.workplace . A_LF
+            text .= "Address: " . item.address . A_LF
         }
         else if (item.organization != "")
         {
-            text .= "Ten to chuc: " . item.organization . A_LF
-            text .= "Dia chi: " . item.orgaddress . A_LF
-            text .= "Nguoi dai dien: " . item.representative . A_LF
-            text .= "Chuc danh: " . item.position . A_LF
+            text .= "Organization: " . item.organization . A_LF
+            text .= "Address: " . item.orgaddress . A_LF
+            text .= "Representative: " . item.representative . A_LF
+            text .= "Position: " . item.position . A_LF
         }
         
-        text .= "Ma so thue: " . item.taxid . A_LF
-        text .= "Bien ban: " . item.bienban . A_LF
-        text .= "Hanh vi vi pham: " . item.violation . A_LF
-        text .= "Quy dinh tai: " . item.regulation . A_LF
-        text .= "Loai phat: " . item.penaltytype . A_LF
-        text .= "Muc phat: " . item.penalty . A_LF
-        text .= "Tai khoan: " . item.account . A_LF
+        text .= "Tax ID: " . item.taxid . A_LF
+        text .= "Decision No: " . item.bienban . A_LF
+        text .= "Violation: " . item.violation . A_LF
+        text .= "Regulation: " . item.regulation . A_LF
+        text .= "Penalty Type: " . item.penaltytype . A_LF
+        text .= "Penalty Amount: " . item.penalty . A_LF
+        text .= "Account: " . item.account . A_LF
         text .= A_LF
     }
     
@@ -277,7 +307,7 @@ ExportToExcel()
         objSheet := objWorkbook.Sheets(1)
         
         ; Create headers
-        headers := ["STT", "File Name", "Name/Organization", "Tax ID", "Decision No", "Penalty Type", "Penalty Amount", "Violation"]
+        headers := ["STT", "File Name", "Name/Org", "Tax ID", "Decision No", "Penalty Type", "Amount", "Violation"]
         for col, header in headers
             objSheet.Cells(1, col).Value := header
         
@@ -326,14 +356,11 @@ ExportToCSV()
             return
         }
         
-        ; Write BOM for proper UTF-8 encoding in Excel
         file.Write(Chr(0xFEFF))
         
-        ; Write headers
-        headers := "STT,File Name,Name/Organization,Tax ID,Decision No,Penalty Type,Penalty Amount,Violation"
+        headers := "STT,File Name,Name/Org,Tax ID,Decision No,Penalty Type,Amount,Violation"
         file.Write(headers . "`n")
         
-        ; Write data
         for index, item in resultsArray
         {
             name := item.name != "" ? item.name : item.organization
