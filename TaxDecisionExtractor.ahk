@@ -3,139 +3,305 @@ SetBatchLines -1
 #Include %A_ScriptDir%
 
 ; Configuration
-global resultsArray := []
-global selectedFolder := ""
-global isProcessing := false
+global fileList := []
+global fileStatus := {}
+global currentFileIndex := 0
+global currentData := {}
+global isEditing := false
 
 ; Create GUI
-Gui, Add, Button, x10 y10 w150 h30, SelectFolder
-Gui, Add, Button, x170 y10 w150 h30, StartExtract
-Gui, Add, Button, x330 y10 w100 h30, CopyAll
-Gui, Add, Button, x440 y10 w120 h30, ExportExcel
-Gui, Add, Button, x570 y10 w100 h30, ExportCSV
-Gui, Add, Button, x680 y10 w80 h30, Clear
+Gui, Add, Button, x10 y10 w120 h35 cWhite, Chọn File
+Gui, Add, Button, x140 y10 w120 h35 cWhite, Đọc File Word
+Gui, Add, Button, x270 y10 w120 h35 cWhite, Chỉnh Sửa
+Gui, Add, Button, x400 y10 w120 h35 cWhite, Tự Động Điền Web
+Gui, Add, Button, x530 y10 w120 h35 cWhite, Đóng
 
-Gui, Add, Text, x10 y50 w760 h20 cBlue vFolderText, Folder: (Not selected)
-Gui, Add, ListBox, x10 y75 w760 h350 Multi vResultsList, 
+; Left column - File list
+Gui, Add, Text, x10 y60 w250 h20 cBlack, KET QUA:
+Gui, Add, ListBox, x10 y85 w250 h400 vFileListBox gFileSelected, 
 
-Gui, Add, StatusBar, x10 y430 w760 h20
-SB_SetText("Ready...")
+; Right column - Data display
+Gui, Add, Text, x270 y60 w490 h20 cBlack, CHỈNH SỬA:
+Gui, Add, Edit, x270 y85 w490 h20 vFieldName, 
+Gui, Add, Text, x270 y110 w490 h15, Tên cá nhân / Tên tổ chức:
 
-Gui, Show, w780 h455, Tax Decision Extractor v1.0
+Gui, Add, Edit, x270 y130 w490 h20 vFieldBirthdate, 
+Gui, Add, Text, x270 y155 w490 h15, Ngày, tháng, năm sinh:
+
+Gui, Add, Edit, x270 y175 w490 h20 vFieldNationality, 
+Gui, Add, Text, x270 y200 w490 h15, Quốc tịch:
+
+Gui, Add, Edit, x270 y220 w490 h20 vFieldCCCD, 
+Gui, Add, Text, x270 y245 w490 h15, Số CCCD:
+
+Gui, Add, Edit, x270 y265 w490 h20 vFieldTaxID, 
+Gui, Add, Text, x270 y290 w490 h15, Mã số thuế:
+
+Gui, Add, Edit, x270 y310 w490 h20 vFieldViolation, 
+Gui, Add, Text, x270 y335 w490 h15, Hành vi vi phạm:
+
+Gui, Add, Edit, x270 y355 w490 h20 vFieldPenaltyType, 
+Gui, Add, Text, x270 y380 w490 h15, Loại phạt:
+
+Gui, Add, Edit, x270 y400 w490 h20 vFieldPenalty, 
+Gui, Add, Text, x270 y425 w490 h15, Mức phạt:
+
+; Buttons for edit
+Gui, Add, Button, x270 y450 w120 h25, Lưu
+Gui, Add, Button, x400 y450 w120 h25, Hủy
+
+Gui, Add, StatusBar, x10 y490 w800 h20
+SB_SetText("Sẵn sàng...")
+
+Gui, Show, w800 h520, Bảng Điều Khiển - Tax Decision Extractor
 return
 
-ButtonSelectFolder:
-FileSelectFolder, folder, , 1, Select folder containing Word files:
-if (folder != "")
+ButtonChọnFile:
+FileSelectFile, files, Multi, , Chọn file Word để đọc:
+if (files != "")
 {
-    selectedFolder := folder
-    GuiControl, , FolderText, Folder: %folder%
-    SB_SetText("Selected: " . folder)
-}
-return
-
-ButtonStartExtract:
-if (selectedFolder = "")
-{
-    MsgBox, 48, Notice, Please select a folder first!
-    return
-}
-ProcessFiles()
-return
-
-ButtonCopyAll:
-if (resultsArray.Length() = 0)
-{
-    MsgBox, 48, Notice, No data to copy!
-    return
-}
-CopyToClipboard()
-return
-
-ButtonExportExcel:
-if (resultsArray.Length() = 0)
-{
-    MsgBox, 48, Notice, No data to export!
-    return
-}
-ExportToExcel()
-return
-
-ButtonExportCSV:
-if (resultsArray.Length() = 0)
-{
-    MsgBox, 48, Notice, No data to export!
-    return
-}
-ExportToCSV()
-return
-
-ButtonClear:
-GuiControl, , ResultsList, |
-resultsArray := []
-SB_SetText("Data cleared")
-return
-
-ProcessFiles()
-{
-    global selectedFolder, resultsArray, isProcessing
-    
-    isProcessing := true
-    GuiControl, Disable, Button2
-    resultsArray := []
-    GuiControl, , ResultsList, |
-    
-    fileCount := 0
-    processedCount := 0
-    
-    ; Count total files first
-    Loop, Files, %selectedFolder%\*.docx
-        fileCount++
-    Loop, Files, %selectedFolder%\*.doc
-        fileCount++
-    
-    SB_SetText("Found " . fileCount . " Word files. Starting extraction...")
-    Sleep, 500
-    
-    ; Process .docx files
-    Loop, Files, %selectedFolder%\*.docx
+    ; Parse multiple files
+    Loop, Parse, files, `n
     {
-        SB_SetText("Processing (.docx): " . A_LoopFileName . " (" . (processedCount+1) . "/" . fileCount . ")")
-        Sleep, 100
-        
-        data := ExtractFromWord(A_LoopFilePath)
-        if (data.name != "" || data.organization != "")
+        if (A_Index = 1 && A_LoopField != "")
         {
-            resultsArray.Push(data)
-            AddToListView(data)
+            basePath := A_LoopField
         }
-        processedCount++
+        else if (A_Index > 1 && A_LoopField != "")
+        {
+            fullPath := basePath . "\" . A_LoopField
+            if (!InArray(fileList, fullPath))
+            {
+                fileList.Push(fullPath)
+                fileStatus[fullPath] := "Chưa đọc"
+            }
+        }
     }
     
-    ; Process .doc files
-    Loop, Files, %selectedFolder%\*.doc
+    RefreshFileList()
+    SB_SetText("Đã chọn " . fileList.Length() . " file")
+}
+return
+
+ButtonĐọcFileWord:
+if (currentFileIndex = 0 || currentFileIndex > fileList.Length())
+{
+    MsgBox, 48, Thông báo, Vui lòng chọn file từ danh sách trước!
+    return
+}
+
+filePath := fileList[currentFileIndex]
+SB_SetText("Đang đọc: " . GetFileName(filePath) . "...")
+
+data := ExtractFromWord(filePath)
+currentData := data
+
+if (data.name != "" || data.organization != "")
+{
+    fileStatus[filePath] := "Đã đọc"
+    RefreshFileList()
+    DisplayData(data)
+    SB_SetText("Đã đọc: " . GetFileName(filePath))
+}
+else
+{
+    fileStatus[filePath] := "Lỗi"
+    RefreshFileList()
+    SB_SetText("Lỗi: Không thể trích xuất dữ liệu từ " . GetFileName(filePath))
+    MsgBox, 48, Lỗi, Không thể trích xuất dữ liệu từ file này!
+}
+return
+
+ButtonChỉnhSửa:
+isEditing := true
+GuiControl, Enable, FieldName
+GuiControl, Enable, FieldBirthdate
+GuiControl, Enable, FieldNationality
+GuiControl, Enable, FieldCCCD
+GuiControl, Enable, FieldTaxID
+GuiControl, Enable, FieldViolation
+GuiControl, Enable, FieldPenaltyType
+GuiControl, Enable, FieldPenalty
+SB_SetText("Bạn có thể chỉnh sửa dữ liệu. Nhấn 'Lưu' để lưu hoặc 'Hủy' để bỏ qua")
+return
+
+ButtonLưu:
+if (!isEditing)
+    return
+
+; Get edited values
+GuiControlGet, fieldName, , FieldName
+GuiControlGet, fieldBirthdate, , FieldBirthdate
+GuiControlGet, fieldNationality, , FieldNationality
+GuiControlGet, fieldCCCD, , FieldCCCD
+GuiControlGet, fieldTaxID, , FieldTaxID
+GuiControlGet, fieldViolation, , FieldViolation
+GuiControlGet, fieldPenaltyType, , FieldPenaltyType
+GuiControlGet, fieldPenalty, , FieldPenalty
+
+; Update current data
+currentData.name := fieldName
+currentData.birthdate := fieldBirthdate
+currentData.nationality := fieldNationality
+currentData.cccd := fieldCCCD
+currentData.taxid := fieldTaxID
+currentData.violation := fieldViolation
+currentData.penaltytype := fieldPenaltyType
+currentData.penalty := fieldPenalty
+
+; Disable editing
+isEditing := false
+GuiControl, Disable, FieldName
+GuiControl, Disable, FieldBirthdate
+GuiControl, Disable, FieldNationality
+GuiControl, Disable, FieldCCCD
+GuiControl, Disable, FieldTaxID
+GuiControl, Disable, FieldViolation
+GuiControl, Disable, FieldPenaltyType
+GuiControl, Disable, FieldPenalty
+
+SB_SetText("Đã lưu thay đổi")
+MsgBox, 64, Thành công, Dữ liệu đã được lưu!
+return
+
+ButtonHủy:
+if (!isEditing)
+    return
+
+; Reload previous data
+DisplayData(currentData)
+
+isEditing := false
+GuiControl, Disable, FieldName
+GuiControl, Disable, FieldBirthdate
+GuiControl, Disable, FieldNationality
+GuiControl, Disable, FieldCCCD
+GuiControl, Disable, FieldTaxID
+GuiControl, Disable, FieldViolation
+GuiControl, Disable, FieldPenaltyType
+GuiControl, Disable, FieldPenalty
+
+SB_SetText("Hủy chỉnh sửa")
+return
+
+ButtonTựĐộngĐiềnWeb:
+MsgBox, 48, Thông báo, Tính năng này sẽ được cập nhật sau!
+return
+
+ButtonĐóng:
+ExitApp
+return
+
+FileSelected:
+if (FileListBox = "")
+    return
+
+; Parse selected item to get file index
+Loop, Parse, FileListBox, `n
+{
+    currentFileIndex := A_Index
+    break
+}
+
+if (currentFileIndex > 0 && currentFileIndex <= fileList.Length())
+{
+    filePath := fileList[currentFileIndex]
+    
+    ; Try to load data if already read
+    if (fileStatus[filePath] = "Đã đọc")
     {
-        SB_SetText("Processing (.doc): " . A_LoopFileName . " (" . (processedCount+1) . "/" . fileCount . ")")
-        Sleep, 100
-        
-        data := ExtractFromWord(A_LoopFilePath)
+        data := ExtractFromWord(filePath)
         if (data.name != "" || data.organization != "")
         {
-            resultsArray.Push(data)
-            AddToListView(data)
+            currentData := data
+            DisplayData(data)
         }
-        processedCount++
     }
+    else
+    {
+        ClearDisplay()
+    }
+}
+return
+
+RefreshFileList()
+{
+    list := ""
+    Loop, % fileList.Length()
+    {
+        fileName := GetFileName(fileList[A_Index])
+        status := fileStatus[fileList[A_Index]]
+        list .= A_Index . ". " . fileName . " (" . status . ")`n"
+    }
+    GuiControl, , FileListBox, |%list%
+}
+
+DisplayData(data)
+{
+    name := data.name != "" ? data.name : data.organization
+    GuiControl, , FieldName, %name%
+    GuiControl, , FieldBirthdate, %data.birthdate%
+    GuiControl, , FieldNationality, %data.nationality%
+    GuiControl, , FieldCCCD, %data.cccd%
+    GuiControl, , FieldTaxID, %data.taxid%
+    GuiControl, , FieldViolation, %data.violation%
+    GuiControl, , FieldPenaltyType, %data.penaltytype%
+    GuiControl, , FieldPenalty, %data.penalty%
     
-    GuiControl, Enable, Button2
-    isProcessing := false
-    SB_SetText("Completed! Extracted " . resultsArray.Length() . " records from " . processedCount . " files")
+    ; Disable editing by default
+    isEditing := false
+    GuiControl, Disable, FieldName
+    GuiControl, Disable, FieldBirthdate
+    GuiControl, Disable, FieldNationality
+    GuiControl, Disable, FieldCCCD
+    GuiControl, Disable, FieldTaxID
+    GuiControl, Disable, FieldViolation
+    GuiControl, Disable, FieldPenaltyType
+    GuiControl, Disable, FieldPenalty
+}
+
+ClearDisplay()
+{
+    GuiControl, , FieldName, 
+    GuiControl, , FieldBirthdate, 
+    GuiControl, , FieldNationality, 
+    GuiControl, , FieldCCCD, 
+    GuiControl, , FieldTaxID, 
+    GuiControl, , FieldViolation, 
+    GuiControl, , FieldPenaltyType, 
+    GuiControl, , FieldPenalty, 
+    
+    isEditing := false
+    GuiControl, Disable, FieldName
+    GuiControl, Disable, FieldBirthdate
+    GuiControl, Disable, FieldNationality
+    GuiControl, Disable, FieldCCCD
+    GuiControl, Disable, FieldTaxID
+    GuiControl, Disable, FieldViolation
+    GuiControl, Disable, FieldPenaltyType
+    GuiControl, Disable, FieldPenalty
+}
+
+GetFileName(filePath)
+{
+    SplitPath, filePath, fileName
+    return fileName
+}
+
+InArray(arr, value)
+{
+    for index, item in arr
+    {
+        if (item = value)
+            return true
+    }
+    return false
 }
 
 ExtractFromWord(filePath)
 {
     data := {}
-    data.filename := A_LoopFileName
+    data.filename := GetFileName(filePath)
     data.name := ""
     data.birthdate := ""
     data.nationality := ""
@@ -149,13 +315,12 @@ ExtractFromWord(filePath)
     data.position := ""
     data.violation := ""
     data.regulation := ""
-    data.aggravating := "None"
-    data.mitigating := "None"
+    data.aggravating := "Không"
+    data.mitigating := "Không"
     data.penalty := ""
     data.penaltytype := ""
     data.account := ""
     data.bienban := ""
-    data.ngayBienban := ""
     
     try
     {
@@ -179,7 +344,8 @@ ExtractFromWord(filePath)
         }
         else if (InStr(docText, "Tên tổ chức:"))
         {
-            data.organization := ExtractValue(docText, "Tên tổ chức:", "Địa chỉ")
+            data.name := ExtractValue(docText, "Tên tổ chức:", "Địa chỉ")
+            data.organization := data.name
             data.orgaddress := ExtractValue(docText, "Địa chỉ trụ sở chính:", "Mã số thuế:")
             data.taxid := ExtractValue(docText, "Mã số thuế:", "Số GCN")
             data.representative := ExtractValue(docText, "Người đại diện theo pháp luật:", "Chức danh:")
@@ -189,13 +355,11 @@ ExtractFromWord(filePath)
         data.bienban := ExtractValue(docText, "Biên bản vi phạm hành chính về thuế số", "lập")
         data.violation := ExtractValue(docText, "thực hiện hành vi vi phạm hành chính:", "Quy định tại:")
         data.regulation := ExtractValue(docText, "Quy định tại:", "Các tình tiết")
-        data.aggravating := ExtractValue(docText, "Các tình tiết tăng nặng (nếu có):", "Các tình tiết giảm nhẹ")
-        data.mitigating := ExtractValue(docText, "Các tình tiết giảm nhẹ (nếu có):", "Bị áp dụng")
         
         if (InStr(docText, "Phạt tiền"))
-            data.penaltytype := "Phat tien"
+            data.penaltytype := "Phạt tiền"
         else if (InStr(docText, "Phạt cảnh cáo"))
-            data.penaltytype := "Phat canh cao"
+            data.penaltytype := "Phạt cảnh cáo"
         
         data.penalty := ExtractValue(docText, "Mức phạt:", "đồng")
         data.account := ExtractValue(docText, "Tài khoản thu NSNN:", ",")
@@ -205,7 +369,7 @@ ExtractFromWord(filePath)
     }
     catch e
     {
-        SB_SetText("Error processing: " . A_LoopFileName . " - " . e.Message)
+        SB_SetText("Lỗi: " . e.Message)
     }
     
     return data
@@ -226,7 +390,6 @@ ExtractValue(text, startMarker, endMarker)
     result := SubStr(text, startPos, endPos - startPos)
     result := Trim(result)
     
-    ; Clean up result
     result := StrReplace(result, A_Tab, " ")
     result := StrReplace(result, A_CR, " ")
     result := StrReplace(result, A_LF, " ")
@@ -240,152 +403,6 @@ ExtractValue(text, startMarker, endMarker)
     }
     
     return Trim(result)
-}
-
-AddToListView(data)
-{
-    global ResultsList
-    
-    name := data.name != "" ? data.name : data.organization
-    violation := SubStr(data.violation, 1, 30) . (StrLen(data.violation) > 30 ? "..." : "")
-    penalty := data.penaltytype . (data.penalty != "" ? " - " . SubStr(data.penalty, 1, 15) : "")
-    
-    GuiControl, , ResultsList, % name . " | " . penalty . " | " . data.bienban
-}
-
-CopyToClipboard()
-{
-    text := ""
-    for index, item in resultsArray
-    {
-        text .= "=== Record " . index . " ===" . A_LF
-        text .= "File Name: " . item.filename . A_LF
-        
-        if (item.name != "")
-        {
-            text .= "Name: " . item.name . A_LF
-            text .= "Birth Date: " . item.birthdate . A_LF
-            text .= "Nationality: " . item.nationality . A_LF
-            text .= "ID: " . item.cccd . A_LF
-            text .= "Workplace: " . item.workplace . A_LF
-            text .= "Address: " . item.address . A_LF
-        }
-        else if (item.organization != "")
-        {
-            text .= "Organization: " . item.organization . A_LF
-            text .= "Address: " . item.orgaddress . A_LF
-            text .= "Representative: " . item.representative . A_LF
-            text .= "Position: " . item.position . A_LF
-        }
-        
-        text .= "Tax ID: " . item.taxid . A_LF
-        text .= "Decision No: " . item.bienban . A_LF
-        text .= "Violation: " . item.violation . A_LF
-        text .= "Regulation: " . item.regulation . A_LF
-        text .= "Penalty Type: " . item.penaltytype . A_LF
-        text .= "Penalty Amount: " . item.penalty . A_LF
-        text .= "Account: " . item.account . A_LF
-        text .= A_LF
-    }
-    
-    A_Clipboard := text
-    SB_SetText("Copied " . resultsArray.Length() . " records to clipboard")
-    MsgBox, 64, Success, Data copied to clipboard!
-}
-
-ExportToExcel()
-{
-    FileSelectFile, outputFile, S16, , Export to Excel, *.xlsx
-    if (outputFile = "")
-        return
-    
-    try
-    {
-        objExcel := ComObjCreate("Excel.Application")
-        objExcel.Visible := true
-        objWorkbook := objExcel.Workbooks.Add()
-        objSheet := objWorkbook.Sheets(1)
-        
-        ; Create headers
-        headers := ["STT", "File Name", "Name/Org", "Tax ID", "Decision No", "Penalty Type", "Amount", "Violation"]
-        for col, header in headers
-            objSheet.Cells(1, col).Value := header
-        
-        ; Add data
-        row := 2
-        for index, item in resultsArray
-        {
-            name := item.name != "" ? item.name : item.organization
-            objSheet.Cells(row, 1).Value := index
-            objSheet.Cells(row, 2).Value := item.filename
-            objSheet.Cells(row, 3).Value := name
-            objSheet.Cells(row, 4).Value := item.taxid
-            objSheet.Cells(row, 5).Value := item.bienban
-            objSheet.Cells(row, 6).Value := item.penaltytype
-            objSheet.Cells(row, 7).Value := item.penalty
-            objSheet.Cells(row, 8).Value := item.violation
-            row++
-        }
-        
-        objSheet.Columns("A:H").AutoFit()
-        objWorkbook.SaveAs(outputFile)
-        objWorkbook.Close()
-        objExcel.Quit()
-        
-        SB_SetText("Exported to Excel: " . outputFile)
-        MsgBox, 64, Success, Data exported to Excel!
-    }
-    catch e
-    {
-        MsgBox, 48, Error, Cannot export to Excel: %e%
-    }
-}
-
-ExportToCSV()
-{
-    FileSelectFile, outputFile, S16, , Export to CSV, *.csv
-    if (outputFile = "")
-        return
-    
-    try
-    {
-        file := FileOpen(outputFile, "w", "UTF-8-RAW")
-        if !IsObject(file)
-        {
-            MsgBox, 48, Error, Cannot create CSV file
-            return
-        }
-        
-        file.Write(Chr(0xFEFF))
-        
-        headers := "STT,File Name,Name/Org,Tax ID,Decision No,Penalty Type,Amount,Violation"
-        file.Write(headers . "`n")
-        
-        for index, item in resultsArray
-        {
-            name := item.name != "" ? item.name : item.organization
-            line := index . "," . CSVEscape(item.filename) . "," . CSVEscape(name) . "," . CSVEscape(item.taxid) . "," . CSVEscape(item.bienban) . "," . CSVEscape(item.penaltytype) . "," . CSVEscape(item.penalty) . "," . CSVEscape(item.violation)
-            file.Write(line . "`n")
-        }
-        
-        file.Close()
-        SB_SetText("Exported to CSV: " . outputFile)
-        MsgBox, 64, Success, Data exported to CSV!
-    }
-    catch e
-    {
-        MsgBox, 48, Error, Cannot export to CSV: %e%
-    }
-}
-
-CSVEscape(text)
-{
-    if (InStr(text, ",") || InStr(text, """") || InStr(text, "`n"))
-    {
-        text := StrReplace(text, """", """""")
-        return """" . text . """"
-    }
-    return text
 }
 
 GuiClose:
